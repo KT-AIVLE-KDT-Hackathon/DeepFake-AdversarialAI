@@ -246,7 +246,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate adversarial images using FGSM.")
     parser.add_argument("image_path", type=str, help="Path to the input image.")
     parser.add_argument("output_path", type=str, help="Path to save the output image.")
-    parser.add_argument('--epsilon', type=float, default=0.1, help="Epsilon value for FGSM attack")  # 추가된 부분
+    parser.add_argument('--epsilon', type=float, default=0.01, help="Epsilon value for FGSM attack")  # 추가된 부분
     return parser.parse_args()
 
 # 이미지 불러오기 함수
@@ -284,7 +284,7 @@ def apply_fgsm_attack(lpips_fgsm_loss, image, epsilon):
 
 # 이미지 저장 함수
 def save_image(image, output_path):
-    # 이미지 값 범위를 0~255로 변경 후 uint8로 변환
+    # 이미지를 0~255 범위로 변경하고 uint8로 변환
     image = np.clip(image * 255, 0, 255).astype(np.uint8)  # 값 클리핑
     img = Image.fromarray(image)  # NumPy 배열을 PIL 이미지로 변환
     img.save(output_path)
@@ -306,11 +306,9 @@ def main():
     # 결과 출력
     if adversarial_image.shape[0] == 1:  # 배치 차원만 검사
         adversarial_image_numpy = tf.squeeze(adversarial_image).numpy()  # 배치 차원 제거
-        adversarial_image_numpy = (adversarial_image_numpy * 255).astype(np.uint8)  # 0-255 범위로 변환
 
         # 이미지 저장
         save_image(adversarial_image_numpy, output_path)
-        print(f"Adversarial image saved at: {output_path}")
 
         # 이미지 시각화
         plt.imshow(adversarial_image_numpy)
