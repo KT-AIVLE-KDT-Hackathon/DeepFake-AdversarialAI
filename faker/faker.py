@@ -13,6 +13,7 @@ from tensorflow.keras.models import Model  # pylint:disable=no-name-in-module,im
 import tensorflow.keras.backend as K  # pylint:disable=no-name-in-module,import-error
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 from lib.model.networks import AlexNet
 from lib.utils import GetModel
@@ -82,7 +83,7 @@ class _LPIPSTrunkNet():
     def _process_weights(self, model: Model) -> Model:
         if self._load_weights:
             weights = GetModel(self._net.model_name, self._net.model_id).model_path
-            model.load_weights(weights)
+            model.load_weights(weights, by_name=True)
 
         if self._eval_mode:
             model.trainable = False
@@ -245,6 +246,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate adversarial images using FGSM.")
     parser.add_argument("image_path", type=str, help="Path to the input image.")
     parser.add_argument("output_path", type=str, help="Path to save the output image.")
+    parser.add_argument('--epsilon', type=float, default=0.1, help="Epsilon value for FGSM attack")  # 추가된 부분
     return parser.parse_args()
 
 # 이미지 불러오기 함수
@@ -259,7 +261,7 @@ def apply_fgsm_attack(lpips_fgsm_loss, image, epsilon):
 
     # AlexNet 또는 lpips_fgsm_loss로부터 예측값을 얻어옴
     initial_prediction, loss_value = lpips_fgsm_loss(image, image)  # image와 예측값을 비교
-
+    
     print("Loss value before gradient:", loss_value)
 
     # 그라디언트 테이프 사용 (여기서는 필수)
@@ -283,8 +285,10 @@ def apply_fgsm_attack(lpips_fgsm_loss, image, epsilon):
 # 이미지 저장 함수
 def save_image(image, output_path):
     # 이미지 값 범위를 0~255로 변경 후 uint8로 변환
-    image = (image * 255).astype(np.uint8)
-    plt.imsave(output_path, image)
+    image = np.clip(image * 255, 0, 255).astype(np.uint8)  # 값 클리핑
+    img = Image.fromarray(image)  # NumPy 배열을 PIL 이미지로 변환
+    img.save(output_path)
+    print(f"Image saved to {output_path}")
 
 # 메인 함수
 def main():
@@ -297,14 +301,14 @@ def main():
     image = tf.expand_dims(image, axis=0)  # 배치 차원 추가 (배치 크기 1)
 
     # FGSM 공격 적용
-    adversarial_image, loss_value = apply_fgsm_attack(image)
-
+    adversarial_image, loss_value = apply_fgsm_attack(lpips_fgsm_loss, image, args.epsilon)
+    
     # 결과 출력
-    if adversarial_image.shape == (1, 256, 256, 3):  # 이미지 크기 확인
+    if adversarial_image.shape[0] == 1:  # 배치 차원만 검사
         adversarial_image_numpy = tf.squeeze(adversarial_image).numpy()  # 배치 차원 제거
         adversarial_image_numpy = (adversarial_image_numpy * 255).astype(np.uint8)  # 0-255 범위로 변환
 
-# 이미지 저장
+        # 이미지 저장
         save_image(adversarial_image_numpy, output_path)
         print(f"Adversarial image saved at: {output_path}")
 
@@ -314,7 +318,7 @@ def main():
         plt.axis('off')
         plt.show()
     else:
-        print("Invalid shape for adversarial image:", adversarial_image.shape)
+        print(f"Invalid shape for adversarial image: {adversarial_image.shape}")
 
     # 손실 값 출력
     print("Loss value:", loss_value.numpy())
